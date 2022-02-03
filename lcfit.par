@@ -1,0 +1,78 @@
+-v
+--seed    2
+#--degrade_lc
+
+################################################################################
+#    I / O    P A R A M E T E R S
+
+--rootdir    .
+
+--input_list    test.lst
+--input_dir    test_photometry
+
+--input_lc_suffix    .dat
+#--input_lc_prefix
+
+--gls_input_file    gls_input.dat
+
+--plot_dir    lcplots_test
+--plot_suffix    _gpr
+
+--output_data_dir    phasedlc_test
+
+--output_syn_dir    synlc_test
+--syn_suffix    _syn
+
+--output_gpr_dir    gpr_test
+
+--merged_output_datafile    test_all.dat
+--output_param_file    test.dat
+
+--n_data_cols    1
+--use_data_cols    1
+--is_magerr_col
+#--known_data_cols
+
+--plot_data
+--save_figures
+
+################################################################################
+#    R E G R E S S I O N    P A R A M E T E R S
+
+#--min_snr    20
+#--flag_omit    x
+
+--fold_double_period
+--feh_model_file    model_mc1_poly1.3_RRab.sav
+--pca_model_file    rrab_fourier_pca.sav
+
+--plot_gpr
+#--plot_all_data
+--waveband   I
+#--plot_augmented
+
+
+--fit_period
+#--do_gls
+#--redo_gls
+#--weighted_fit
+--loss    huber
+--sigma_clip_threshold    3.0
+#--compute_errors
+--nsyn    120
+--align_phi1
+--gpr_fit
+--gpr_hparam_optimization    mle
+--gpr_cv_n_init    20
+--gpr_cv_n_calls    20
+
+--fourier_from_gpr
+#--n_augment_data 9
+--k_fold    10
+--fourier_order_min    3
+--fourier_order_max    8
+
+--mean_phase21   9.1
+--mean_phase31   5.88
+--mean_phase2    2.755
+--mean_phase3    -0.446
