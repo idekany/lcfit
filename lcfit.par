@@ -1,5 +1,7 @@
+# COMMENTS can be included in this paremeter file by preceding the line with `#`.
+
 -v
---seed    2
+--seed    42
 #--degrade_lc
 
 ################################################################################
@@ -25,12 +27,13 @@
 
 --output_gpr_dir    gpr_test
 
---merged_output_datafile    test_all.dat
+#--merged_output_datafile    test_all.dat
 --output_param_file    test.dat
 
 --n_data_cols    1
 --use_data_cols    1
 --is_magerr_col
+#--is_zperr_col
 #--known_data_cols
 
 --plot_data
@@ -42,12 +45,12 @@
 #--min_snr    20
 #--flag_omit    x
 
---fold_double_period
+#--fold_double_period
 --feh_model_file    model_mc1_poly1.3_RRab.sav
 --pca_model_file    rrab_fourier_pca.sav
 
 --plot_gpr
-#--plot_all_data
+#--plot_all_datasets
 --waveband   I
 #--plot_augmented
 
@@ -58,13 +61,15 @@
 #--weighted_fit
 --loss    huber
 --sigma_clip_threshold    3.0
-#--compute_errors
+--compute_errors
 --nsyn    120
 --align_phi1
 --gpr_fit
 --gpr_hparam_optimization    mle
---gpr_cv_n_init    20
---gpr_cv_n_calls    20
+--gpr_cv_n_init    50
+--gpr_cv_n_calls    50
+#--lower_length_scale_bound    0.1
+#--upper_length_scale_bound    10.0
 
 --fourier_from_gpr
 #--n_augment_data 9

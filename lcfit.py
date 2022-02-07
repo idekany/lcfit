@@ -85,14 +85,19 @@ if pars.feh_model_file is not None:
 else:
     feh_model = None
 
-# Check if there are sufficient CPU cores:
-n_jobs = pars.k_fold
+# Set the number of parallel threads:
 num_cores = multiprocessing.cpu_count()
+if pars.n_jobs is not None:
+    assert pars.n_jobs >= 1 or pars.n_jobs == -1, "`n_jobs` must be a non-negative integer or -1"
+    if pars.n_jobs == -1:
+        n_jobs = num_cores
+    else:
+        n_jobs = pars.n_jobs
+else:
+    n_jobs = pars.k_fold
 if n_jobs > num_cores:
     ut.warn("n_cores has been set to {} (maximum number of cores)".format(num_cores))
-    n_cores = num_cores
-elif n_jobs < 1:
-    ut.warn("Illegal value: n_jobs = {}. Using a single core.".format(n_jobs))
+    n_jobs = num_cores
 
 if gpr_sample_fpars:
     compute_errors = True
@@ -113,21 +118,21 @@ else:
 
 
 # Read input list:
-object_id, object_per, object_ap = ut.read_input(os.path.join(pars.rootdir, pars.input_list),
-                                                 do_gls=pars.do_gls, known_columns=pars.known_data_cols)
+object_id, object_per, object_dataset = ut.read_input(os.path.join(pars.rootdir, pars.input_list),
+                                                      do_gls=pars.do_gls, known_columns=pars.known_data_cols)
 n_object = len(object_id)
 
 # ---------------------
 # Loop over list of input light-curves:
 
-for ilc, objname in enumerate(object_id):
+for iobj, objname in enumerate(object_id):
 
     objname = str(objname)
 
     if pars.verbose:
         print("===================> OBJECT {} : {}<==================="
-              .format(ilc + 1, objname))
-        print("object {} ({})".format(ilc + 1, objname), file=sys.stderr)
+              .format(iobj + 1, objname))
+        print("object {} ({})".format(iobj + 1, objname), file=sys.stderr)
 
     lcfile = os.path.join(pars.rootdir, pars.input_dir, pars.input_lc_prefix + str(objname) + pars.input_lc_suffix)
 
@@ -138,7 +143,7 @@ for ilc, objname in enumerate(object_id):
 
     # Read light curve:
     lcdatain = ut.read_lc(lcfile, n_data_cols=pars.n_data_cols,
-                          is_magerr_col=pars.is_magerr_col,
+                          is_magerr_col=pars.is_magerr_col, is_zperr_col=pars.is_zperr_col,
                           flag_column=(pars.flag_omit is not None), snr_column=(pars.min_snr is not None))
 
     # if lcdatain['otime'].shape[0] < pars.min_ndata:
@@ -148,45 +153,50 @@ for ilc, objname in enumerate(object_id):
         continue
 
     # Initialize variables:
-    cost_best = 9e+10  # initialize cost for dff fit
-    bestap = None  # initialize value for optimal aperture
+    snr_best = 9e+10  # initialize cost for dff fit
+    best_dataset = None  # initialize value for optimal dataset
     fm_best = None
     period_o_best = None
     arrays_best = None
 
     if pars.known_data_cols:
-        pars.use_data_cols = [object_ap[ilc]]
-        print("aperture: " + str(pars.use_data_cols))
+        pars.use_data_cols = [object_dataset[iobj]]
+        print("dataset: " + str(pars.use_data_cols))
 
     # Truncate time values:
     otime0 = lcdatain['otime'][0]
 
-    # Loop over data columns:
-    for iap in np.array(pars.use_data_cols) - 1:
+    # Loop over datasets:
+    for idata in np.array(pars.use_data_cols) - 1:
 
         if pars.verbose:
-            print("\n----------\nAperture {}\n----------".format(iap + 1))
+            print("\n----------\nDataset {}\n----------".format(idata + 1))
 
-        lcdatain = lcdatain[~np.isnan(lcdatain['mag' + str(iap + 1)])]
+        lcdatain = lcdatain[~np.isnan(lcdatain['mag' + str(idata + 1)])]
 
         if pars.flag_omit is not None:
-            lcdatain = lcdatain[lcdatain['flag' + str(iap + 1)].astype(str) != pars.flag_omit]
+            lcdatain = lcdatain[lcdatain['flag' + str(idata + 1)].astype(str) != pars.flag_omit]
         if pars.min_snr is not None:
-            lcdatain = lcdatain[lcdatain['snr' + str(iap + 1)] >= pars.min_snr]
+            lcdatain = lcdatain[lcdatain['snr' + str(idata + 1)] >= pars.min_snr]
 
-        mag = lcdatain['mag' + str(iap + 1)]
+        mag = lcdatain['mag' + str(idata + 1)]
         ndata = len(mag)
 
         if ndata < pars.min_ndata:
-            ut.warn("Object {} : found only {} data points within constraints in aperture {} ({} required), "
-                    "aperture was skipped."
-                    .format(objname, ndata, iap + 1, pars.min_ndata, iap + 1))
+            ut.warn("Object {} : found only {} data points within constraints in dataset {} ({} required), "
+                    "dataset was skipped."
+                    .format(objname, ndata, idata + 1, pars.min_ndata, idata + 1))
             continue
 
         otime = lcdatain['otime'] - otime0
-        zperr = np.zeros(mag.shape)
+
+        if pars.is_zperr_col:
+            zperr = lcdatain['zperr']
+        else:
+            zperr = np.zeros(mag.shape)
+
         if pars.is_magerr_col:
-            magerr = lcdatain['magerr' + str(iap + 1)]
+            magerr = lcdatain['magerr' + str(idata + 1)]
             merr = np.sqrt(magerr ** 2 + zperr ** 2)
         else:
             magerr = np.zeros_like(mag)
@@ -201,7 +211,7 @@ for ilc, objname in enumerate(object_id):
             if pars.verbose:
                 print("P_GLS = {}".format(period))
         else:
-            period = object_per[ilc]
+            period = object_per[iobj]
             if pars.verbose:
                 print("P_in = {}".format(period))
 
@@ -238,11 +248,13 @@ for ilc, objname in enumerate(object_id):
         #   the Fourier order is optimized via k-fold cross-validation.
         if pars.verbose:
             print("---------- Direct Fourier fit ----------\n")
-        io = 0
+
         fm = ff.FourierModel(c_freq_tol=1e-10, loss=pars.loss, epsilon=epsilon,
                              mean_phase2=pars.mean_phase2, mean_phase3=pars.mean_phase3,
                              mean_phase21=pars.mean_phase21, mean_phase31=pars.mean_phase31,
                              tol=tol1, verbose=False)
+
+        io = 0
 
         while True:
             io = io + 1
@@ -292,6 +304,7 @@ for ilc, objname in enumerate(object_id):
             fm.set_params({'order': forder_opt})
             # fm.set_params({'c_freq_tol': 1e-10, 'order': forder_opt})
             prediction, residual = fm.fit(otime, mag, weights=weights, predict=True)
+            fm.compute_results(phas)
 
             rstdev = np.std(residual)  # std. dev. of the residual
 
@@ -318,33 +331,35 @@ for ilc, objname in enumerate(object_id):
 
         if pars.verbose:
             print("\nobject: {0}  ,   N={1} ({2})  ,  ap. {3}:  N_F={4:d}  ,  P={5:.6f}  ,  dP={6:.6f}  ,  "
-                  "sig={7:.3f}  ,  cost={8:.4f}  ,  <mag>={9:.3f}"
-                  .format(objname, ndata, ndata_o, iap + 1, forder_opt, fm.period_,
-                          fm.period_ - period_o, rstdev, fm.cost_, fm.intercept_))
+                  "sig={7:.3f}  ,  cost={8:.4f}  ,  <mag>={9:.3f}  ,  SNR={10:.2f}"
+                  .format(objname, ndata, ndata_o, idata + 1, forder_opt, fm.period_,
+                          fm.period_ - period_o, rstdev, fm.cost_, fm.intercept_, fm.results_['snr']))
 
-        if fm.cost_ < cost_best:  # check if the solution is better than the one for the previous aperture
+        if fm.results_['snr'] < snr_best:  # check if the solution is better than the one for the previous dataset
 
             fm_best = fm
-            bestap = iap
+            best_dataset = idata
             period_o_best = period_o
             arrays_best = (otime, otime_o, mag, mag_o, magerr, magerr_o, zperr, zperr_o)
 
-        if pars.plot_all_data and len(pars.use_data_cols) > 1:
+        if pars.plot_all_datasets and len(pars.use_data_cols) > 1:
+
+            # Create a plot for each dataset of this object.
             shift = fm.phases_[0] / (2 * np.pi)
             phase_obs = ff.get_phases(fm.period_, otime, epoch=0.0, shift=shift, all_positive=True)
             phase_obs_o = ff.get_phases(fm.period_, otime_o, epoch=0.0, shift=shift, all_positive=True)
             syn = fm.predict(phas, shift=shift, for_phases=True)
-            outfile = os.path.join(pars.rootdir, pars.plot_dir, objname + "ap" + str(iap + 1) + ".png")
+            outfile = os.path.join(pars.rootdir, pars.plot_dir, objname + "__" + str(idata + 1) + ".png")
             ut.plotlc(
                 (np.vstack((phase_obs_o, mag_o, magerr_o)).T, np.vstack((phase_obs, mag, magerr)).T,
                  np.vstack((phas, syn)).T),
                 symbols=("ro", "ko", "r-"), title=objname,
-                figtext="ap.={0} , $P_fit$={1:.6f} , $N_F$={2}".format(iap + 1, fm.period_, forder_opt),
+                figtext="dataset: {0} , $P_fit$={1:.6f} , $N_F$={2}".format(idata + 1, fm.period_, forder_opt),
                 figsave=pars.save_figures, outfile=outfile)
 
-    # ====> END OF LOOP OVER DATA COLUMNS
+    # ====> END OF LOOP OVER DATASETS
 
-    if bestap is None:  # In this case, all columns were rejected (not enough data within constrains).
+    if best_dataset is None:  # In this case, all columns were rejected (not enough data within constrains).
         ut.warn("Not enough data within constraints, all columns were rejected, object {} is skipped."
                 .format(objname))
         continue
@@ -373,12 +388,12 @@ for ilc, objname in enumerate(object_id):
     totalzperr = np.sqrt(np.sum(zperr ** 2)) / fm_best.ndata
 
     # Save results in dictionary:
-    fm_best.compute_results(phas)
+    # fm_best.compute_results(phas)
     results = fm_best.results_
     results.update(
         {'objname': objname, 'delta_per': fm_best.period_ - period_o_best, 'nepoch': nepoch, 'minmax': minmax,
          'otime': otime, 'otime_o': otime_o, 'otime0': otime0,
-         'mag': mag, 'mag_o': mag_o, 'magerr': magerr, 'magerr_o': magerr_o, 'aperture': bestap,
+         'mag': mag, 'mag_o': mag_o, 'magerr': magerr, 'magerr_o': magerr_o, 'dataset': best_dataset,
          'ph': phase_obs, 'ph_2p': phase_obs_2p, 'ph_o': phase_obs_o, 'ph_o_2p': phase_obs_o_2p,
          'zperr_o': zperr_o, 'zperr': zperr, 'phcov': phasecov1, 'phcov2': phasecov2,
          'totalzperr': totalzperr, 'period': fm_best.period_, 'cost': fm_best.cost_, 'forder': fm_best.order})
@@ -394,9 +409,9 @@ for ilc, objname in enumerate(object_id):
         print("============================================================\nRESULTS:")
 
     print("object: {0}  ,   N={1} ({2})  ,  ap. {3}:  N_F={4:d}  ,  P={5:.6f}  ,  dP={6:.6f}  ,  sig={7:.3f}  ,"
-          "  cost={8:.4f}  ,  <mag>={9:.3f}"
-          .format(objname, results['ndata'], ndata_o, bestap + 1, results['forder'], results['period'],
-                  results['delta_per'], results['stdv'], results['cost'], results['icept']))
+          "  cost={8:.4f}  ,  <mag>={9:.3f},  SNR={10:.2f}"
+          .format(objname, results['ndata'], ndata_o, best_dataset + 1, results['forder'], results['period'],
+                  results['delta_per'], results['stdv'], results['cost'], results['icept'], results['snr']))
     if pars.verbose:
         print("Intercept: {}".format(results['icept']))
         print("Amplitudes: {}".format(results['A']))
@@ -408,7 +423,9 @@ for ilc, objname in enumerate(object_id):
 
         gprm = ff.GPRModel(maxn_gpr=maxn_gpr, phase_ext_neg=phase_ext_neg, phase_ext_pos=phase_ext_pos,
                            n_restarts_optimizer=n_gpr_restarts, hparam_optimization=pars.gpr_hparam_optimization,
-                           n_init=pars.gpr_cv_n_init, n_calls=pars.gpr_cv_n_calls)
+                           n_init=pars.gpr_cv_n_init, n_calls=pars.gpr_cv_n_calls,
+                           lower_length_scale_bound=pars.lower_length_scale_bound,
+                           upper_length_scale_bound=pars.upper_length_scale_bound)
 
         gprm.fit(results['ph'], results['mag'], noise_level=results['stdv'],
                  verbose=pars.verbose, random_state=pars.seed)

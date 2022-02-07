@@ -316,7 +316,8 @@ class GPRModel:
     """
 
     def __init__(self, maxn_gpr: int = 200, phase_ext_neg=0, phase_ext_pos=1.2, hparam_optimization: str = 'mle',
-                 n_restarts_optimizer: int = 0, n_init: int = 10, n_calls: int = 10):
+                 n_restarts_optimizer: int = 0, n_init: int = 10, n_calls: int = 10,
+                 lower_length_scale_bound=0.1, upper_length_scale_bound=10.0):
         """
 
         :param maxn_gpr: int
@@ -364,6 +365,8 @@ class GPRModel:
         self._n_calls = n_calls
         self._n_restarts_optimizer = n_restarts_optimizer
         self._noise_level = None
+        self.lower_length_scale_bound = lower_length_scale_bound
+        self.upper_length_scale_bound = upper_length_scale_bound
 
     def fit(self, x: np.ndarray, y: np.ndarray, noise_level: float, verbose=True, random_state: int = None):
         """
@@ -418,7 +421,9 @@ class GPRModel:
 
         # We will use a scaled periodic kernel plus white noise:
         kernel = ConstantKernel(1.0, (1e-3, 1e3)) * \
-            ExpSineSquared(length_scale=1.0, periodicity=1.0, length_scale_bounds=(0.1, 1), periodicity_bounds="fixed") + \
+            ExpSineSquared(length_scale=1.0, periodicity=1.0,
+                           length_scale_bounds=(self.lower_length_scale_bound, self.upper_length_scale_bound),
+                           periodicity_bounds="fixed") + \
             WhiteKernel(noise_level=noise_level ** 2)
 
         self._init_kernel = kernel
@@ -449,7 +454,9 @@ class GPRModel:
             search_space.append(Real((noise_level / 2.) ** 2, (noise_level * 2) ** 2, 'uniform',
                                      name='estimator__kernel__k2__noise_level'))
             search_space.append(Real(1, 100, 'uniform', name='estimator__kernel__k1__k1__constant_value'))
-            search_space.append(Real(0.5, 1.0, 'uniform', name='estimator__kernel__k1__k2__length_scale'))
+            search_space.append(Real(self.lower_length_scale_bound,
+                                     self.upper_length_scale_bound,
+                                     'uniform', name='estimator__kernel__k1__k2__length_scale'))
 
             # define cv-splitter:
             cv = PaddedRepeatedKFold(n_splits=10, n_repeats=1, ext_neg=self._phase_ext_neg-1.0,

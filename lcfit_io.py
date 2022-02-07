@@ -1,7 +1,7 @@
 import argparse
 import os
 
-default_parameter_file = '@lcfit_test.par'
+default_parameter_file = '@lcfit.par'
 
 
 def argparser():
@@ -33,44 +33,45 @@ def argparser():
                     type=str,
                     default=os.path.expanduser('~'),
                     help='Full path of the root directory '
-                         '(all other directory and file names will be relative to this).')
+                         '(all other directory and file names will be relative to this, default: `~`).')
 
     ap.add_argument('--input_list',
                     action='store',
                     type=str,
                     default='lcfit_input.lst',
-                    help='Name of the input list file.')
+                    help='Name of the input list file (default: `lcfit_input.lst`)')
 
     ap.add_argument('--input_dir',
                     action='store',
                     type=str,
                     default='.',
-                    help='Subdirectory of the input time series.')
+                    help='Subdirectory of the input time series (default: `.`)')
 
     ap.add_argument('--gls_input_file',
                     action='store',
                     type=str,
                     default='gls_input.dat',
-                    help='Name of the GLS input file (created by the external code `gls` and read by `lcfit`.)')
+                    help='Name of the GLS input file (created by the external code `gls` and read by `lcfit`, '
+                         'default: `gls_input.dat`)')
 
     ap.add_argument('--input_lc_suffix',
                     action='store',
                     type=str,
                     default='.dat',
-                    help='Suffix for the input time series file names.')
+                    help='Suffix for the input time series file names (default: `.dat`).')
 
     ap.add_argument('--input_lc_prefix',
                     action='store',
                     type=str,
                     default='',
-                    help='Prefix for the input time series file names.')
+                    help='Prefix for the input time series file names (default: no prefix).')
 
     ap.add_argument('--output_dir',
                     action='store',
                     type=str,
                     default='data',
                     help='If specified, the clipped, phased, phase-sorted light curves will be written to '
-                         'this directory (separate file for each time series).')
+                         'this directory, into a separate file for each time series (default: `data`).')
 
     ap.add_argument('--output_syn_dir',
                     action='store',
@@ -170,6 +171,20 @@ def argparser():
                     action='store_true',
                     help='Perform Gaussian Process Regression on the phase-folded time series.')
 
+    ap.add_argument('--lower_length_scale_bound',
+                    action='store',
+                    type=float,
+                    default=0.1,
+                    help='Lower length scale bound for the exponential sine-squared kernel. '
+                         'Used if the --gpr_fit option is selected. Default: 0.1')
+
+    ap.add_argument('--upper_length_scale_bound',
+                    action='store',
+                    type=float,
+                    default=10.0,
+                    help='Upper length scale bound for the exponential sine-squared kernel. '
+                         'Used if the --gpr_fit option is selected. Default: 10.0')
+
     ap.add_argument('--gpr_hparam_optimization',
                     action='store',
                     type=str,
@@ -231,7 +246,11 @@ def argparser():
 
     ap.add_argument('--is_magerr_col',
                     action='store_true',
-                    help='The input contains column with the magnitudes\' uncertainties.')
+                    help='The input contains (a) column(s) with the magnitudes\' uncertainties.')
+
+    ap.add_argument('--is_zperr_col',
+                    action='store_true',
+                    help='The input contains a column with zero-point uncertainties.')
 
     ap.add_argument('--n_data_cols',
                     action='store',
@@ -309,9 +328,9 @@ def argparser():
                     action='store_true',
                     help='Plot the results of the Gaussian Process Regression.')
 
-    ap.add_argument('--plot_all_data',
+    ap.add_argument('--plot_all_datasets',
                     action='store_true',
-                    help='Create plots for all apertures.')
+                    help='Create plots for all datasets.')
 
     ap.add_argument('--fit_period',
                     action='store_true',
@@ -343,6 +362,12 @@ def argparser():
                     type=int,
                     default=20,
                     help='Minimum number of data points in the time series to be considered for analysis.')
+
+    ap.add_argument('--n_jobs',
+                    action='store',
+                    type=int,
+                    default=None,
+                    help='The number parallel threads. If not specified, n_jobs=max{n_cores,k_fold}')
 
     return ap
 

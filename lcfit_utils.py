@@ -100,7 +100,7 @@ def write_results(pars, results: dict):
                  results['Pha'][0], results['Pha'][1], results['Pha'][2],
                  results['Pha_std'][0], results['Pha_std'][1], results['Pha_std'][2],
                  results['phi21'], results['phi21_std'], results['phi31'], results['phi31_std'],
-                 results['icept'], results['icept_std'], results['cost'], results['aperture'] + 1,
+                 results['icept'], results['icept_std'], results['cost'], results['dataset'] + 1,
                  results['phcov'], results['phcov2'], results['snr'], results['totalzperr'],
                  results['ndata'], results['forder'], results['minmax']))
         else:
@@ -110,7 +110,7 @@ def write_results(pars, results: dict):
                         results['A'][0], results['A'][1], results['A'][2],
                         results['Pha'][0], results['Pha'][1], results['Pha'][2],
                         results['phi21'], results['phi31'],
-                        results['icept'], results['cost'], results['aperture'] + 1,
+                        results['icept'], results['cost'], results['dataset'] + 1,
                         results['phcov'], results['phcov2'], results['snr'], results['totalzperr'],
                         results['ndata'], results['forder'], results['minmax']))
 
@@ -217,7 +217,7 @@ def make_figures(pars, results: dict, constrain_yaxis_range=True,
     if pars.fold_double_period:
         # Create phase diagram with double period:
         outfile = os.path.join(pars.rootdir, pars.plot_dir, results['objname'] + pars.plot_suffix + "_2p." + figformat)
-        figtext = '$2P = {0:.6f}$'.format(results['period'] * 2, results['forder'], results['aperture'] + 1)
+        figtext = '$2P = {0:.6f}$'.format(results['period'] * 2, results['forder'], results['dataset'] + 1)
         data1 = np.vstack(
             (results['ph_o_2p'], results['mag_o'], np.sqrt(results['magerr_o'] ** 2 + results['zperr_o'] ** 2))).T
         data2 = np.vstack(
@@ -234,13 +234,13 @@ def make_figures(pars, results: dict, constrain_yaxis_range=True,
 
 def read_input(fname: str, do_gls=False, known_columns=False):
     """
-    Reads the input list file with columns: object ID, [period, [aperture]]
+    Reads the input list file with columns: object ID, [period, [dataset]]
     :param fname: string, the name of the input file
     :param do_gls: boolean, whether to perform GLS on the input time series. If False, the second column of the input
     file must contain the period.
-    :param known_columns: boolean; whether the aperture to be used is known. If True, the last column of the input
+    :param known_columns: boolean; whether the dataset to be used is known. If True, the last column of the input
     file must contain the number of the column.
-    :return: ndarray(s) or None(s); 1-d arrays with the obect IDs, periods, and apertures
+    :return: ndarray(s) or None(s); 1-d arrays with the obect IDs, periods, and datasets
     """
     dtypes = ['|S25']  # dtype for first column: identifiers
 
@@ -276,10 +276,10 @@ def read_input(fname: str, do_gls=False, known_columns=False):
     return object_id, object_per, object_ap
 
 
-def read_lc(lcfile, n_data_cols: int = 1, is_magerr_col: bool = False, flag_column=None, snr_column=None,
-            missing_values="NaN", invalid_raise=False):
+def read_lc(lcfile, n_data_cols: int = 1, is_magerr_col: bool = False, flag_column: bool = False,
+            snr_column: bool = False, is_zperr_col: bool = False, missing_values="NaN", invalid_raise=False):
 
-    assert n_data_cols > 0, "`n_apertures` must be non-zero integer"
+    assert n_data_cols > 0, "`n_datasets` must be non-zero integer"
     colnames = ['otime']
     dtypes = [float]
     ncols = 1
@@ -307,6 +307,12 @@ def read_lc(lcfile, n_data_cols: int = 1, is_magerr_col: bool = False, flag_colu
             colnames.append('flag' + str(ii + 1))
             dtypes.append('|S10')
             ncols += 1
+
+    if is_zperr_col:
+        # The last column is expected to contain the zero-point error:
+        colnames.append('zperr')
+        dtypes.append(float)
+        ncols += 1
 
     used_cols = list(range(ncols))
 
