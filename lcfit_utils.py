@@ -276,7 +276,7 @@ def read_input(fname: str, do_gls=False, known_columns=False):
     return object_id, object_per, object_ap
 
 
-def read_lc(lcfile, n_data_cols: int = 1, is_magerr_col: bool = False, flag_column: bool = False,
+def read_lc(lcfile, n_data_cols: int = 1, is_err_col: bool = False, flag_column: bool = False,
             snr_column: bool = False, is_zperr_col: bool = False, missing_values="NaN", invalid_raise=False):
 
     assert n_data_cols > 0, "`n_datasets` must be non-zero integer"
@@ -290,9 +290,15 @@ def read_lc(lcfile, n_data_cols: int = 1, is_magerr_col: bool = False, flag_colu
         dtypes.append(float)
         ncols += 1
 
-        if is_magerr_col:
+        if is_err_col:
             # We expect the column following each magnitude column to contain the magnitude uncertainty
             colnames.append('magerr' + str(ii + 1))
+            dtypes.append(float)
+            ncols += 1
+
+        if is_zperr_col:
+            # The last column is expected to contain the zero-point error:
+            colnames.append('zperr' + str(ii + 1))
             dtypes.append(float)
             ncols += 1
 
@@ -307,12 +313,6 @@ def read_lc(lcfile, n_data_cols: int = 1, is_magerr_col: bool = False, flag_colu
             colnames.append('flag' + str(ii + 1))
             dtypes.append('|S10')
             ncols += 1
-
-    if is_zperr_col:
-        # The last column is expected to contain the zero-point error:
-        colnames.append('zperr')
-        dtypes.append(float)
-        ncols += 1
 
     used_cols = list(range(ncols))
 

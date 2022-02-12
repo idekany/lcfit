@@ -244,13 +244,13 @@ def argparser():
                     default=8,
                     help='Maximum Fourier order to consider.')
 
-    ap.add_argument('--is_magerr_col',
+    ap.add_argument('--is_err_col',
                     action='store_true',
                     help='The input contains (a) column(s) with the magnitudes\' uncertainties.')
 
     ap.add_argument('--is_zperr_col',
                     action='store_true',
-                    help='The input contains a column with zero-point uncertainties.')
+                    help='The input contains (a) column(s) with zero-point uncertainties.')
 
     ap.add_argument('--n_data_cols',
                     action='store',
@@ -367,7 +367,7 @@ def argparser():
                     action='store',
                     type=int,
                     default=None,
-                    help='The number parallel threads. If not specified, n_jobs=max{n_cores,k_fold}')
+                    help='The number parallel threads. If not specified, n_jobs=max(n_cores, k_fold)')
 
     return ap
 

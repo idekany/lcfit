@@ -317,7 +317,7 @@ class GPRModel:
 
     def __init__(self, maxn_gpr: int = 200, phase_ext_neg=0, phase_ext_pos=1.2, hparam_optimization: str = 'mle',
                  n_restarts_optimizer: int = 0, n_init: int = 10, n_calls: int = 10,
-                 lower_length_scale_bound=0.1, upper_length_scale_bound=10.0):
+                 lower_length_scale_bound=0.1, upper_length_scale_bound=10.0, n_jobs=1):
         """
 
         :param maxn_gpr: int
@@ -367,6 +367,7 @@ class GPRModel:
         self._noise_level = None
         self.lower_length_scale_bound = lower_length_scale_bound
         self.upper_length_scale_bound = upper_length_scale_bound
+        self.n_jobs = n_jobs
 
     def fit(self, x: np.ndarray, y: np.ndarray, noise_level: float, verbose=True, random_state: int = None):
         """
@@ -468,7 +469,7 @@ class GPRModel:
                 # compute CV scores per fold
                 # scoring=None --> the regressor's default scorer will be used (in this case, the R2 score)
                 scores = cross_val_score(pipeline, self._gpr_input_phase.reshape(-1, 1),
-                                         gpr_input_mag.reshape(-1, 1), cv=cv, n_jobs=-1,
+                                         gpr_input_mag.reshape(-1, 1), cv=cv, n_jobs=self.n_jobs,
                                          scoring=None)
                 # calculate the mean of the scores
                 score = np.mean(scores)
@@ -477,7 +478,7 @@ class GPRModel:
 
             warnings.filterwarnings('ignore', message='The objective has been evaluated at this point before.')
             result = gp_minimize(evaluate_model, search_space, verbose=False, n_calls=self._n_calls,
-                                 n_initial_points=self._n_init, n_jobs=-1)
+                                 n_initial_points=self._n_init, n_jobs=self.n_jobs)
 
             pipeline.set_params(estimator__kernel__k2__noise_level=result.x[0])
             pipeline.set_params(estimator__kernel__k1__k1__constant_value=result.x[1])

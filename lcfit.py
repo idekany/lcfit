@@ -24,7 +24,7 @@ phase_ext_neg = 0                       # negative phase range extension beyond 
 phase_ext_pos = 1.2                     # positive phase range extension beyond [0,1]
 minplotlcphase = -0.05                  # minimum phase to plot
 maxplotlcphase = 2.05                   # maximum phase to plot
-constrain_yaxis_range = True            # if True, the y-axis will be constrained to unclipped data
+constrain_yaxis_range = False           # if True, the y-axis will be constrained to unclipped data
 aspect_ratio = 0.6                      # aspect ratio of the plots
 figformat = "png"                       # format of the plots
 c_freq_tol = 10                         # relative tolerance parameter for the period fit
@@ -143,7 +143,7 @@ for iobj, objname in enumerate(object_id):
 
     # Read light curve:
     lcdatain = ut.read_lc(lcfile, n_data_cols=pars.n_data_cols,
-                          is_magerr_col=pars.is_magerr_col, is_zperr_col=pars.is_zperr_col,
+                          is_err_col=pars.is_err_col, is_zperr_col=pars.is_zperr_col,
                           flag_column=(pars.flag_omit is not None), snr_column=(pars.min_snr is not None))
 
     # if lcdatain['otime'].shape[0] < pars.min_ndata:
@@ -153,7 +153,7 @@ for iobj, objname in enumerate(object_id):
         continue
 
     # Initialize variables:
-    snr_best = 9e+10  # initialize cost for dff fit
+    snr_best = -1  # initialize cost for dff fit
     best_dataset = None  # initialize value for optimal dataset
     fm_best = None
     period_o_best = None
@@ -191,11 +191,11 @@ for iobj, objname in enumerate(object_id):
         otime = lcdatain['otime'] - otime0
 
         if pars.is_zperr_col:
-            zperr = lcdatain['zperr']
+            zperr = lcdatain['zperr' + str(idata + 1)]
         else:
             zperr = np.zeros(mag.shape)
 
-        if pars.is_magerr_col:
+        if pars.is_err_col:
             magerr = lcdatain['magerr' + str(idata + 1)]
             merr = np.sqrt(magerr ** 2 + zperr ** 2)
         else:
@@ -234,7 +234,7 @@ for iobj, objname in enumerate(object_id):
 
 #       ------------------------------------------
 
-        if pars.weighted_fit and pars.is_magerr_col:
+        if pars.weighted_fit and pars.is_err_col:
             weights = ((merr + eps) * 100) ** (-2)
         else:
             weights = np.ones(magerr.shape[0])
@@ -335,9 +335,10 @@ for iobj, objname in enumerate(object_id):
                   .format(objname, ndata, ndata_o, idata + 1, forder_opt, fm.period_,
                           fm.period_ - period_o, rstdev, fm.cost_, fm.intercept_, fm.results_['snr']))
 
-        if fm.results_['snr'] < snr_best:  # check if the solution is better than the one for the previous dataset
+        if fm.results_['snr'] > snr_best:  # check if the solution is better than the one for the previous dataset
 
             fm_best = fm
+            snr_best = fm.results_['snr']
             best_dataset = idata
             period_o_best = period_o
             arrays_best = (otime, otime_o, mag, mag_o, magerr, magerr_o, zperr, zperr_o)
@@ -425,7 +426,7 @@ for iobj, objname in enumerate(object_id):
                            n_restarts_optimizer=n_gpr_restarts, hparam_optimization=pars.gpr_hparam_optimization,
                            n_init=pars.gpr_cv_n_init, n_calls=pars.gpr_cv_n_calls,
                            lower_length_scale_bound=pars.lower_length_scale_bound,
-                           upper_length_scale_bound=pars.upper_length_scale_bound)
+                           upper_length_scale_bound=pars.upper_length_scale_bound, n_jobs=n_jobs)
 
         gprm.fit(results['ph'], results['mag'], noise_level=results['stdv'],
                  verbose=pars.verbose, random_state=pars.seed)

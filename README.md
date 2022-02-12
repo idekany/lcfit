@@ -84,17 +84,17 @@ by the `--use_data_cols <list of numbers>` parameter.
 
 By default, the input files are expected to contain a (time, value) column
 pair for each dataset. An error column per dataset can be added by using the 
-`--is_magerr_col` option; by which one can specify the statistical uncertainties
+`--is_err_col` option; by which one can specify the statistical uncertainties
 in the measurements of each dataset, and use it for sample weighing in the period
-search and/or regression. In addition, columns with the signal-to-noise ratio
+search and/or regression. In addition, a separate column with
+the systematic zero-point (ZP) uncertainty (per dataset) can also be added using 
+the `--is_zperr_col` option. This can be useful for example if the data have a 
+point-to-point calibration of the photometric ZP, such as in the case of 
+[VVV](https://vvvsurvey.org/). Finally, columns with the signal-to-noise ratio
 of individual measurements and a measurement flag can also be added for each 
 dataset by using the `--min_snr <snr>` and `--flag_omit <flag>` options. 
 In this case, data with S/N<`<snr>` and/or
-flagged with `<flag>` will be omitted from the analysis. Finally, a column with
-the systematic zero-point (ZP) uncertainty can be added using the 
-`--is_zperr_col` option. This can be useful for example if the data have a 
-point-to-point calibration of the photometric ZP, such as in the case of 
-[VVV](https://vvvsurvey.org/).
+flagged with `<flag>` will be omitted from the analysis. 
 
 ### Main features
 
@@ -183,6 +183,28 @@ will be saved using `joblib` and written to files the provided directory.
 Figures showing the phase-folded time series, the rejected outliers, and the 
 best-fitting regression models are generated for each input time series and
 written to a subdirectory specified by `--plot_dir <directory_name>`.
+
+### Examples
+
+A few example data files are provided in the `test_photometry` subdirectory. 
+The input list file `test1.lst` includes 3 RRab Lyrae stars from the OGLE-IV 
+survey, their corresponding data files contain a single I-band dataset with 
+an error column. 
+To analyze these with lcfit, the following options should be set in the 
+parameter file `lcfit.par`:
+`--input_list test1.lst --input_dir test_photometry --n_data_cols 1 
+--use_data_cols 1 --is_err_col`
+The input list file `test2.lst` comprises a single RRab Lyrae, and its data file
+contains 5 Ks-band datasets from the VVV survey, corresponding to 5 photometric 
+apertures of different diameters. The object is temporally blended by a nearby 
+point-source, severely contaminating its photometric light curve. Each dataset 
+includes an error and a ZP-error column. To analyze the data of this object and 
+select the optimal one among the 3 smallest apertures, we should use the following 
+settings in `lcfit.par`:
+`--input_list test2.lst --input_dir test_photometry --n_data_cols 5 
+--use_data_cols 1 2 3 --is_err_col --is_zperr_col`.
+The results and output files will be written to the subdirectories provided
+with this repository.
 
 ## License
 
