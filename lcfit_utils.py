@@ -317,7 +317,7 @@ def read_lc(lcfile, n_data_cols: int = 1, is_err_col: bool = False, flag_column:
     used_cols = list(range(ncols))
 
     # Read light curve:
-    lcdatain = np.genfromtxt(lcfile, unpack=True, comments='#', filling_values=np.nan,
+    lcdatain = np.genfromtxt(lcfile, unpack=False, comments='#', filling_values=np.nan,
                              dtype=dtypes, usecols=used_cols, missing_values=missing_values,
                              names=colnames, invalid_raise=invalid_raise)
     print(lcfile + " found.")

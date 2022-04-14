@@ -42,7 +42,7 @@ is required for performing initial period search. The compiled Fortran binary is
 as a subprocess.
 
 The latest version of lcfit was tested under the following python3 environment:
-numpy 1.19.5, scipy 1.6.3, scikit-learn 0.24.2, scikit-optimize 0.9.0, 
+numpy 1.18.5, scipy 1.6.3, scikit-learn 0.24.2, scikit-optimize 0.9.0, 
 matplotlib 3.4.2, joblib 1.0.1.
 
 ## Usage
