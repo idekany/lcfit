@@ -9,10 +9,10 @@
 
 --rootdir    .
 
---input_list    test2.lst
+--input_list    test1.lst
 --input_dir    test_photometry
 
---input_lc_suffix    .dat
+#--input_lc_suffix    .dat
 #--input_lc_prefix
 
 --gls_input_file    gls_input.dat
@@ -30,11 +30,12 @@
 #--merged_output_datafile    test_all.dat
 --output_param_file    test.dat
 
---n_data_cols    5
---use_data_cols    1 2 3
+--n_data_cols    1
+--use_data_cols    1
 --is_err_col
---is_zperr_col
+#--is_zperr_col
 #--known_data_cols
+#--known_phaseshift
 
 --plot_data
 --save_figures
@@ -56,8 +57,7 @@
 --waveband   Ks
 #--plot_augmented
 
-
---fit_period
+#--fit_period
 #--do_gls
 #--redo_gls
 #--weighted_fit
@@ -70,6 +70,7 @@
 --gpr_hparam_optimization    mle
 --gpr_cv_n_init    50
 --gpr_cv_n_calls    50
+--kernel    matern
 #--lower_length_scale_bound    0.1
 #--upper_length_scale_bound    10.0
 

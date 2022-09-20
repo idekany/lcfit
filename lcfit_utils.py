@@ -72,10 +72,10 @@ def write_results(pars, results: dict):
             if pars.compute_errors:
                 file.write('# id  Nep  period  totamp  A1  A2  A3  A1_e  A2_e  A3_e  phi1  phi2  phi3  '
                            'phi1_e  phi2_e  phi3_e  phi21  phi21_e  phi31  phi31_e  '
-                           'meanmag  meanmag_e  cost  aper  phcov  phcov2  snr  ZPErr  Npt  order  minmax')
+                           'meanmag  meanmag_e  cost  aper  phcov  phcov2  snr  ZPErr  Npt  order  minmax  phaseshift')
             else:
                 file.write('# id  Nep  period  totamp  A1  A2  A3  phi1  phi2  phi3  phi21  phi31  meanmag  cost  '
-                           'aper  phcov  phcov2  snr  ZPErr  Npt  order  minmax')
+                           'aper  phcov  phcov2  snr  ZPErr  Npt  order  minmax  phaseshift')
 
             if pars.feh_model_file is not None:
                 file.write('  FeH')
@@ -93,7 +93,7 @@ def write_results(pars, results: dict):
         if pars.compute_errors:
             file.write(
                 "%s %4d %.6f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.4f %.4f %.3f %.3f "
-                "%.3f %.3f %.4f %d %.3f %.3f %.1f %.4f %4d %2d %.3f" %
+                "%.3f %.3f %.4f %d %.3f %.3f %.1f %.4f %4d %2d %.3f %.3f" %
                 (results['objname'], results['nepoch'], results['period'], results['tamp'],
                  results['A'][0], results['A'][1], results['A'][2],
                  results['A_std'][0], results['A_std'][1], results['A_std'][2],
@@ -102,17 +102,17 @@ def write_results(pars, results: dict):
                  results['phi21'], results['phi21_std'], results['phi31'], results['phi31_std'],
                  results['icept'], results['icept_std'], results['cost'], results['dataset'] + 1,
                  results['phcov'], results['phcov2'], results['snr'], results['totalzperr'],
-                 results['ndata'], results['forder'], results['minmax']))
+                 results['ndata'], results['forder'], results['minmax'], results['phaseshift']))
         else:
             file.write("%s %4d %.6f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.4f %.4f %.3f "
-                       "%.4f %d %.3f %.3f %.1f %.4f %4d %2d %.3f" %
+                       "%.4f %d %.3f %.3f %.1f %.4f %4d %2d %.3f %.3f" %
                        (results['objname'], results['nepoch'], results['period'], results['tamp'],
                         results['A'][0], results['A'][1], results['A'][2],
                         results['Pha'][0], results['Pha'][1], results['Pha'][2],
                         results['phi21'], results['phi31'],
                         results['icept'], results['cost'], results['dataset'] + 1,
                         results['phcov'], results['phcov2'], results['snr'], results['totalzperr'],
-                        results['ndata'], results['forder'], results['minmax']))
+                        results['ndata'], results['forder'], results['minmax'], results['phaseshift']))
 
         if pars.feh_model_file is not None:
             file.write("  %.3f" % results['feh'])
@@ -145,30 +145,40 @@ def write_merged_datafile(pars, results: dict):
         np.savetxt(file, outarr, fmt='%s %.6f %.3f %.3f %.3f')
 
 
-def write_single_datafile(pars, results: dict, phase_ext_neg=0, phase_ext_pos=1.2):
-    ophase_sorted, mag_sorted = extend_phases(results['ph'], results['mag'],
-                                              phase_ext_neg=phase_ext_neg, phase_ext_pos=phase_ext_pos, sort=True)
-    outarr = np.rec.fromarrays((ophase_sorted, mag_sorted), names=('phase', 'kmag'))
+def write_single_datafile(pars, results: dict, phase_ext_neg=0, phase_ext_pos=1.2, with_errors=True):
+    ophase_sorted, (mag_sorted, magerr_sorted) = \
+        extend_phases(results['ph'], (results['mag'] - results['icept'], results['magerr']),
+                      phase_ext_neg=phase_ext_neg, phase_ext_pos=phase_ext_pos, sort=True)
+    if with_errors:
+        outarr = np.rec.fromarrays((ophase_sorted, mag_sorted, magerr_sorted), names=('phase', 'mag', 'magerr'))
+        fmt = '%f %f %f'
+    else:
+        outarr = np.rec.fromarrays((ophase_sorted, mag_sorted), names=('phase', 'mag'))
+        fmt = '%f %f'
+
     with open(os.path.join(pars.rootdir, pars.output_data_dir, results['objname'] + '.dat'), 'w') as file:
-        np.savetxt(file, outarr, fmt='%f %f')
+        np.savetxt(file, outarr, fmt=fmt)
 
     if pars.fold_double_period:
-        ophase_sorted2, mag_sorted2 = extend_phases(results['ph_2p'], results['mag'],
-                                                    phase_ext_neg=phase_ext_neg, phase_ext_pos=phase_ext_pos, sort=True)
+        ophase_sorted2, (mag_sorted2,) = \
+            extend_phases(results['ph_2p'], (results['mag'],),
+                          phase_ext_neg=phase_ext_neg, phase_ext_pos=phase_ext_pos, sort=True)
+
         outarr = np.rec.fromarrays((ophase_sorted2, mag_sorted2), names=('phase', 'kmag'))
+
         with open(os.path.join(pars.rootdir, pars.output_data_dir, results['objname'] + '_2p.dat'), 'w') as file:
             np.savetxt(file, outarr, fmt='%f %f')
 
 
 def write_synthetic_data(pars, results: dict):
-
     if pars.gpr_fit:
         outarr = np.rec.fromarrays((results['phase_grid'], results['synmag_gpr'] - results['icept']))
         np.savetxt(os.path.join(pars.rootdir, pars.output_syn_dir,
                                 results['objname'] + "_gpr" + pars.syn_suffix + '.dat'),
                    outarr, fmt='%.4f %.4f')
         if pars.n_augment_data is not None:
-            outarr = np.hstack((results['phase_grid'].reshape(-1, 1), (results['synmag_gpr']).reshape(-1, 1), results['synmag_gpa']))
+            outarr = np.hstack(
+                (results['phase_grid'].reshape(-1, 1), (results['synmag_gpr']).reshape(-1, 1), results['synmag_gpa']))
             np.savetxt(os.path.join(pars.rootdir, pars.output_syn_dir,
                                     results['objname'] + "_gpr_aug" + pars.syn_suffix + '.dat'),
                        outarr, fmt='%7.4f ' * (pars.n_augment_data + 2))
@@ -181,7 +191,6 @@ def write_synthetic_data(pars, results: dict):
 
 def make_figures(pars, results: dict, constrain_yaxis_range=True,
                  minphase=0, maxphase=1.2, aspect_ratio=0.6, figformat: str = 'png'):
-
     # Create phase diagram:
     outfile = os.path.join(pars.rootdir, pars.plot_dir, results['objname'] + pars.plot_suffix + "." + figformat)
 
@@ -232,7 +241,7 @@ def make_figures(pars, results: dict, constrain_yaxis_range=True,
                constrain_yaxis_range=True, figformat=figformat)
 
 
-def read_input(fname: str, do_gls=False, known_columns=False):
+def read_input(fname: str, do_gls=False, known_columns=False, known_phaseshift=False):
     """
     Reads the input list file with columns: object ID, [period, [dataset]]
     :param fname: string, the name of the input file
@@ -240,26 +249,37 @@ def read_input(fname: str, do_gls=False, known_columns=False):
     file must contain the period.
     :param known_columns: boolean; whether the dataset to be used is known. If True, the last column of the input
     file must contain the number of the column.
+    :param known_phaseshift: boolean; whether the phase shift to be applied to the time series is already known.
     :return: ndarray(s) or None(s); 1-d arrays with the obect IDs, periods, and datasets
     """
+    # dtypes = ['|S25']  # dtype for first column: identifiers
+    #
+    # if do_gls:
+    #     if known_columns:
+    #         usecols = (0, 1)
+    #         dtypes = dtypes + ['i']
+    #     else:
+    #         usecols = (0,)
+    # else:
+    #     if known_columns:
+    #         usecols = (0, 1, 2)
+    #         dtypes = dtypes + ['f8'] + ['i']
+    #     else:
+    #         usecols = (0, 1)
+    #         dtypes = dtypes + ['f8']
+
     dtypes = ['|S25']  # dtype for first column: identifiers
+    if not do_gls:
+        dtypes += ['f8']
+    if known_columns:
+        dtypes += ['f8']
+    if known_phaseshift:
+        dtypes += ['f8']
 
-    if do_gls:
-        if known_columns:
-            usecols = (0, 1)
-            dtypes = dtypes + ['i']
-        else:
-            usecols = (0,)
-    else:
-        if known_columns:
-            usecols = (0, 1, 2)
-            dtypes = dtypes + ['f8'] + ['i']
-        else:
-            usecols = (0, 1)
-            dtypes = dtypes + ['f8']
+    # arr = np.genfromtxt(fname, usecols=usecols,
+    #                     dtype=dtypes, unpack=False, comments='#', filling_values=np.nan, names=True)
 
-    arr = np.genfromtxt(fname, usecols=usecols,
-                        dtype=dtypes, unpack=False, comments='#', filling_values=np.nan, names=True)
+    arr = np.genfromtxt(fname, dtype=dtypes, unpack=False, comments='#', filling_values=np.nan, names=True)
 
     object_id = arr['id'].reshape(-1, ).astype(str)
 
@@ -269,16 +289,20 @@ def read_input(fname: str, do_gls=False, known_columns=False):
         object_per = arr['period'].reshape(-1, )
 
     if known_columns:
-        object_ap = arr['ap'].reshape(-1, )
+        object_col = arr['col'].reshape(-1, ).astype(int)
     else:
-        object_ap = None
+        object_col = None
 
-    return object_id, object_per, object_ap
+    if known_phaseshift:
+        object_phaseshift = arr['phaseshift'].reshape(-1, )
+    else:
+        object_phaseshift = np.zeros(object_id.shape)
+
+    return object_id, object_per, object_col, object_phaseshift
 
 
 def read_lc(lcfile, n_data_cols: int = 1, is_err_col: bool = False, flag_column: bool = False,
             snr_column: bool = False, is_zperr_col: bool = False, missing_values="NaN", invalid_raise=False):
-
     assert n_data_cols > 0, "`n_datasets` must be non-zero integer"
     colnames = ['otime']
     dtypes = [float]
@@ -286,7 +310,7 @@ def read_lc(lcfile, n_data_cols: int = 1, is_err_col: bool = False, flag_column:
 
     for ii in range(n_data_cols):
 
-        colnames.append('mag' + str(ii+1))
+        colnames.append('mag' + str(ii + 1))
         dtypes.append(float)
         ncols += 1
 
@@ -488,7 +512,7 @@ def plotlc(datasets, symbols=(), labels=(), fillerr_index=(), title=None, figtex
     return None
 
 
-def extend_phases(p, y, phase_ext_neg=0.0, phase_ext_pos=0.0, sort=False):
+def extend_phases(p, y_list, phase_ext_neg=0.0, phase_ext_pos=0.0, sort=False):
     """
     Extend a phase and a corresponding data vector in phase.
     """
@@ -497,20 +521,28 @@ def extend_phases(p, y, phase_ext_neg=0.0, phase_ext_pos=0.0, sort=False):
     neg_ext_mask = (p - 1 > phase_ext_neg)  # select phases in negative direction
     pos_ext_mask = (p + 1 < phase_ext_pos)  # select phases in positive direction
 
+    y_ext_list = []
+
     # Compose new data vectors according to extended phases:
     p_ext = np.hstack((p[neg_ext_mask] - 1, p, p[pos_ext_mask] + 1))
-    y_ext = np.hstack((y[neg_ext_mask], y, y[pos_ext_mask]))
-    # magerr_ext=np.hstack((results['magerr_binned'][neg_ext_mask], results['magerr_binned'],
-    # results['magerr_binned'][pos_ext_mask]))
 
+    sort_indx = None
     if sort:
         # Sort data according to observed phases:
-        indx = np.argsort(p_ext)  # indices of sorted ophase
-        p_ext_sorted = p_ext[indx]
-        y_ext_sorted = y_ext[indx]
-        return p_ext_sorted, y_ext_sorted
+        sort_indx = np.argsort(p_ext)  # indices of sorted ophase
+        p_ext = p_ext[sort_indx]
+
+    for y in y_list:
+        y_ext = np.hstack((y[neg_ext_mask], y, y[pos_ext_mask]))
+        # magerr_ext=np.hstack((results['magerr_binned'][neg_ext_mask], results['magerr_binned'],
+        # results['magerr_binned'][pos_ext_mask]))
+
+        if sort_indx is not None:
+            # Sort data according to observed phases:
+            y_ext = y_ext[sort_indx]
+        y_ext_list.append(y_ext)
     else:
-        return p_ext, y_ext
+        return p_ext, y_ext_list
 
 
 def smolec_feh(period, phi31, amp2):

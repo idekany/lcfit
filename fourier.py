@@ -5,7 +5,7 @@ import lcfit_utils as ut
 import subprocess
 from scipy.optimize import least_squares
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import ConstantKernel, ExpSineSquared, WhiteKernel
+from sklearn.gaussian_process.kernels import ConstantKernel, ExpSineSquared, WhiteKernel, Matern, RBF
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import RepeatedKFold, cross_val_score
@@ -49,7 +49,7 @@ def glsper(times: np.ndarray, values: np.ndarray, errors: np.ndarray, glsinputfi
     # glscmd = "./gls " + glsinputfile + " | awk '{print $3}'"
     # glsout = subprocess.check_output(glscmd, stderr=None, shell=True, universal_newlines=False)
     glsout = subprocess.run(['./gls', glsinputfile], capture_output=True)
-    period = 1.0/float(glsout.stdout.split()[2])
+    period = 1.0 / float(glsout.stdout.split()[2])
     return period
 
 
@@ -76,13 +76,13 @@ def get_phases(period: float, x: np.ndarray, epoch: float = 0.0, shift: float = 
     The computed phases with indices matching x.
     """
 
-    phases = np.modf((x-epoch+shift*period)/period)[0]
+    phases = np.modf((x - epoch + shift * period) / period)[0]
 
     if all_positive:
         phases = all_phases_positive(phases)
     return phases
 
-    
+
 def all_phases_positive(phases: np.ndarray):
     """
     Converts an array of phases to be positive definite.
@@ -130,15 +130,15 @@ def fsum_sin(x: np.ndarray, amps: np.ndarray, phases: np.ndarray,
     assert len(x.shape) == 1, "parameter `x` must be a rank-1 array"
     assert len(amps.shape) == 1, "parameter `x` must be a rank-1 array"
     assert len(phases.shape) == 1, "parameter `x` must be a rank-1 array"
-    assert amps.shape == phases.shape, "the shapes of `amps` and `phases` must match, got {} and {}."\
+    assert amps.shape == phases.shape, "the shapes of `amps` and `phases` must match, got {} and {}." \
         .format(amps.shape, phases.shape)
     order = amps.shape[0]
 
-    arg_vect = 2*np.pi*(x+shift)/period
+    arg_vect = 2 * np.pi * (x + shift) / period
     result = np.zeros(x.shape[0])
 
-    for i in range(1, order+1):
-        result = result + amps[i-1]*np.sin(i*arg_vect+phases[i-1])
+    for i in range(1, order + 1):
+        result = result + amps[i - 1] * np.sin(i * arg_vect + phases[i - 1])
 
     fourier_sum = result + intercept
 
@@ -156,6 +156,7 @@ class ExtendPhases(BaseEstimator, TransformerMixin):
     Indended to be combined with the PaddedRepeatedKFold custom CV-splitter class
     in order to create periodic boundary conditions using padded phases during cross-validation.
     """
+
     def __init__(self):
         # defined for compatibility with sklearn
         pass
@@ -193,50 +194,50 @@ class ExtendPhases(BaseEstimator, TransformerMixin):
             return X
 
 
-def extend_phases(X: np.ndarray, y: np.ndarray, ext_neg: float = 0.0, ext_pos: float = 0.0, sort: bool = False):
-    """
-    Pads an array of phases `X` with values in [0:1] to [ext_neg, ext_pos].
-    The array `y` is also padded with its values corresponding to the indices of `X`.
-
-    :param X: 1-dimensional numpy.ndarray
-    The phase array with values in [0,1].
-
-    :param y: 1-dimensional numpy.ndarray
-    An array with values corresponding to each phase in `X`.
-
-    :param ext_neg: float
-    The negative extension of the padding of `X`.
-
-    :param ext_pos:
-    The positive extension of the padding of `X`.
-
-    :param sort: bool
-    If `True`, the output arrays will be sorted according to the padded version of `X`.
-
-    :return: 1-dimensional numpy.ndarray, 1-dimensional numpy.ndarray
-    The transformed versions of `X` and `y`.
-    """
-
-    # X and y are expected to be rank-1 arrays
-
-    # Extend data vectors in phase:
-    neg_ext_mask = (X - 1 > ext_neg)  # select phases in negative direction
-    pos_ext_mask = (X + 1 < ext_pos)  # select phases in positive direction
-
-    # Compose new data vectors according to extended phases:
-    X_ext = np.hstack((X[neg_ext_mask] - 1, X, X[pos_ext_mask] + 1))
-    y_ext = np.hstack((y[neg_ext_mask], y, y[pos_ext_mask]))
-    # magerr_ext=np.hstack((results['magerr_binned'][neg_ext_mask], results['magerr_binned'],
-    # results['magerr_binned'][pos_ext_mask]))
-
-    if sort:
-        # Sort data according to observed phases:
-        indx = np.argsort(X_ext)  # indices of sorted ophase
-        p_ext_sorted = X_ext[indx]
-        y_ext_sorted = y_ext[indx]
-        return p_ext_sorted, y_ext_sorted
-    else:
-        return X_ext, y_ext
+# def extend_phases(X: np.ndarray, y: np.ndarray, ext_neg: float = 0.0, ext_pos: float = 0.0, sort: bool = False):
+#     """
+#     Pads an array of phases `X` with values in [0:1] to [ext_neg, ext_pos].
+#     The array `y` is also padded with its values corresponding to the indices of `X`.
+#
+#     :param X: 1-dimensional numpy.ndarray
+#     The phase array with values in [0,1].
+#
+#     :param y: 1-dimensional numpy.ndarray
+#     An array with values corresponding to each phase in `X`.
+#
+#     :param ext_neg: float
+#     The negative extension of the padding of `X`.
+#
+#     :param ext_pos:
+#     The positive extension of the padding of `X`.
+#
+#     :param sort: bool
+#     If `True`, the output arrays will be sorted according to the padded version of `X`.
+#
+#     :return: 1-dimensional numpy.ndarray, 1-dimensional numpy.ndarray
+#     The transformed versions of `X` and `y`.
+#     """
+#
+#     # X and y are expected to be rank-1 arrays
+#
+#     # Extend data vectors in phase:
+#     neg_ext_mask = (X - 1 > ext_neg)  # select phases in negative direction
+#     pos_ext_mask = (X + 1 < ext_pos)  # select phases in positive direction
+#
+#     # Compose new data vectors according to extended phases:
+#     X_ext = np.hstack((X[neg_ext_mask] - 1, X, X[pos_ext_mask] + 1))
+#     y_ext = np.hstack((y[neg_ext_mask], y, y[pos_ext_mask]))
+#     # magerr_ext=np.hstack((results['magerr_binned'][neg_ext_mask], results['magerr_binned'],
+#     # results['magerr_binned'][pos_ext_mask]))
+#
+#     if sort:
+#         # Sort data according to observed phases:
+#         indx = np.argsort(X_ext)  # indices of sorted ophase
+#         p_ext_sorted = X_ext[indx]
+#         y_ext_sorted = y_ext[indx]
+#         return p_ext_sorted, y_ext_sorted
+#     else:
+#         return X_ext, y_ext
 
 
 class PaddedRepeatedKFold:
@@ -247,6 +248,7 @@ class PaddedRepeatedKFold:
     Intended to be used together with the ExtendPhases transformer class in order to create periodic
     boundary conditions using padded phases during cross-validation.
     """
+
     def __init__(self, n_splits: int = 3, n_repeats: int = 1, ext_neg: float = 0.0, ext_pos: float = 0.0,
                  random_state: int = 1):
         """
@@ -316,7 +318,7 @@ class GPRModel:
     """
 
     def __init__(self, maxn_gpr: int = 200, phase_ext_neg=0, phase_ext_pos=1.2, hparam_optimization: str = 'mle',
-                 n_restarts_optimizer: int = 0, n_init: int = 10, n_calls: int = 10,
+                 n_restarts_optimizer: int = 0, n_init: int = 10, n_calls: int = 10, kernel: str = 'expsine2',
                  lower_length_scale_bound=0.1, upper_length_scale_bound=10.0, n_jobs=1):
         """
 
@@ -368,6 +370,8 @@ class GPRModel:
         self.lower_length_scale_bound = lower_length_scale_bound
         self.upper_length_scale_bound = upper_length_scale_bound
         self.n_jobs = n_jobs
+        assert kernel in ('expsine2', 'matern'), "Invalid kernel: {}. Kernel must be expsine2 or matern."
+        self.kernel = kernel
 
     def fit(self, x: np.ndarray, y: np.ndarray, noise_level: float, verbose=True, random_state: int = None):
         """
@@ -404,9 +408,9 @@ class GPRModel:
         # Check if the number of data points exceeds maxn_gpr
         if len(x) > self._maxn_gpr:
             # Bin data to maxn_gpr points:
-            gpr_bins = np.linspace(0.0, 1.0, self._maxn_gpr+1)
+            gpr_bins = np.linspace(0.0, 1.0, self._maxn_gpr + 1)
             gpr_input_mag = binstat(x, y, statistic='mean', bins=gpr_bins).statistic
-            gpr_input_phase = (gpr_bins+1./self._maxn_gpr/2.)[:-1]
+            gpr_input_phase = (gpr_bins + 1. / self._maxn_gpr / 2.)[:-1]
             nanmask = np.isnan(gpr_input_mag)
             gpr_input_mag = gpr_input_mag[~nanmask]
             self._gpr_input_phase = gpr_input_phase[~nanmask]
@@ -420,12 +424,22 @@ class GPRModel:
         self._gpr_input_phase = self._gpr_input_phase[indx]
         gpr_input_mag = gpr_input_mag[indx]
 
-        # We will use a scaled periodic kernel plus white noise:
-        kernel = ConstantKernel(1.0, (1e-3, 1e3)) * \
-            ExpSineSquared(length_scale=1.0, periodicity=1.0,
-                           length_scale_bounds=(self.lower_length_scale_bound, self.upper_length_scale_bound),
-                           periodicity_bounds="fixed") + \
-            WhiteKernel(noise_level=noise_level ** 2)
+        if self.kernel == "expsine2":
+
+            # We will use a scaled periodic kernel plus white noise:
+            kernel = ConstantKernel(10.0, (1e-3, 1e3)) * \
+                     ExpSineSquared(length_scale=1.0, periodicity=1.0,
+                                    length_scale_bounds=(self.lower_length_scale_bound, self.upper_length_scale_bound),
+                                    periodicity_bounds="fixed") + \
+                     WhiteKernel(noise_level=noise_level ** 2)
+        else:
+            kernel = WhiteKernel(noise_level=(noise_level**2)/2,
+                                 noise_level_bounds=((noise_level**2)/10, noise_level**2)) + \
+                     Matern(length_scale=1.0, nu=1.5,
+                            length_scale_bounds=(self.lower_length_scale_bound, self.upper_length_scale_bound)) * \
+                     ConstantKernel(100.0, (1e-3, 1e5))
+                # RBF(length_scale=1.0,
+            #     length_scale_bounds=(self.lower_length_scale_bound, self.upper_length_scale_bound))
 
         self._init_kernel = kernel
 
@@ -460,8 +474,8 @@ class GPRModel:
                                      'uniform', name='estimator__kernel__k1__k2__length_scale'))
 
             # define cv-splitter:
-            cv = PaddedRepeatedKFold(n_splits=10, n_repeats=1, ext_neg=self._phase_ext_neg-1.0,
-                                     ext_pos=self._phase_ext_pos+1.0, random_state=random_state)
+            cv = PaddedRepeatedKFold(n_splits=10, n_repeats=1, ext_neg=self._phase_ext_neg - 1.0,
+                                     ext_pos=self._phase_ext_pos + 1.0, random_state=random_state)
 
             @use_named_args(search_space)
             def evaluate_model(**params):
@@ -493,12 +507,12 @@ class GPRModel:
             self._gpr = pipeline.steps[1][1]
 
         # prepare boundary conditions in the dataset for the final regression:
-        phase_gpr, mag_gpr = \
-            ut.extend_phases(self._gpr_input_phase, gpr_input_mag,
-                             phase_ext_neg=self._phase_ext_neg-1.0, phase_ext_pos=self._phase_ext_pos+1.0,
+        phase_gpr, (mag_gpr,) = \
+            ut.extend_phases(self._gpr_input_phase, (gpr_input_mag,),
+                             phase_ext_neg=self._phase_ext_neg - 1.0, phase_ext_pos=self._phase_ext_pos + 1.0,
                              sort=True)
 
-        print("initial noise level = {0:.5f}".format(noise_level ** 2))
+        print("initial noise level = {0:.3f}".format(noise_level ** 2))
         self._gpr.fit(phase_gpr.reshape(-1, 1), mag_gpr.reshape(-1, 1))
         print("final kernel:")
         print(self._gpr.kernel_)
@@ -707,8 +721,8 @@ class GPRModel:
         synmag_gpa = np.zeros((len(phases), n_aug))
         for iaug in range(n_aug):
             # extend phases (acts as border condition)
-            phase_gpr_aug, mag_gpr_aug = \
-                ut.extend_phases(self._gpr_input_phase, aug_samples_gpr[:, iaug],
+            phase_gpr_aug, (mag_gpr_aug,) = \
+                ut.extend_phases(self._gpr_input_phase, (aug_samples_gpr[:, iaug],),
                                  phase_ext_neg=self._phase_ext_neg - 1.0,
                                  phase_ext_pos=self._phase_ext_pos + 1.0,
                                  sort=True)
@@ -780,9 +794,9 @@ class FourierModel:
         """
 
         assert loss in ('linear', 'soft_l1', 'huber', 'cauchy', 'arctan'), \
-            "invalid loss, valid choices are:"\
+            "invalid loss, valid choices are:" \
             "`linear`, `soft_l1`, `huber`, `cauchy`, `arctan`"
-        
+
         self.period_ = period_init
         self.order = order
         self.c_freq_tol = c_freq_tol
@@ -873,18 +887,18 @@ class FourierModel:
         fourier_sum: 1-dimensional ndarray
         The array with the values of the Fourier sum.
         """
-        
+
         order = self.order
         result = np.zeros(x.size)
 
-        arg_vect = 2*np.pi*(x+shift)/period
-        
-        for i in range(1, order+1):
-            result = result + \
-                     coefs[i*2-2] * np.sin(i*arg_vect) + \
-                     coefs[i*2-1] * np.cos(i*arg_vect)
+        arg_vect = 2 * np.pi * (x + shift) / period
 
-        fourier_sum = result+intercept
+        for i in range(1, order + 1):
+            result = result + \
+                     coefs[i * 2 - 2] * np.sin(i * arg_vect) + \
+                     coefs[i * 2 - 1] * np.cos(i * arg_vect)
+
+        fourier_sum = result + intercept
 
         return fourier_sum
 
@@ -911,19 +925,19 @@ class FourierModel:
         Array of the residuals.
         """
         order = self.order
-        
+
         period = params[0]
-        coefs = params[1:2*order+1]   # amplitudes of the sin, cos terms
-        intercept = params[2*order+1]   # intercept (additive constant)
-        
+        coefs = params[1:2 * order + 1]  # amplitudes of the sin, cos terms
+        intercept = params[2 * order + 1]  # intercept (additive constant)
+
         predictions = self.fourier_sum(x, coefs, intercept, period)
-        
+
         residuals = y - predictions
-        
+
         if weights is not None:
             # compute weighted residuals
-            residuals = residuals*weights
-        
+            residuals = residuals * weights
+
         return residuals
 
     def fit(self, x: np.ndarray, y, weights=None, predict=False):
@@ -951,26 +965,26 @@ class FourierModel:
         self.y = y
 
         self.ndata = len(x)
-        
-        freq = 1.0/self.period_    # input frequency
-        freq_res = 1.0/(np.amax(x)-np.amin(x))    # nominal frequency resolution
-        freq_hi = freq+self.c_freq_tol*freq_res
-        per_lo = 1.0/freq_hi
-        freq_lo = freq-self.c_freq_tol*freq_res
+
+        freq = 1.0 / self.period_  # input frequency
+        freq_res = 1.0 / (np.amax(x) - np.amin(x))  # nominal frequency resolution
+        freq_hi = freq + self.c_freq_tol * freq_res
+        per_lo = 1.0 / freq_hi
+        freq_lo = freq - self.c_freq_tol * freq_res
         if freq_lo > 0.0:
-            per_hi = 1.0/(freq-self.c_freq_tol*freq_res)
+            per_hi = 1.0 / (freq - self.c_freq_tol * freq_res)
         else:
             per_hi = np.inf
-        
+
         median_y = np.median(y)
         y_range = np.amax(y) - np.amin(y)
-        
+
         # set initial parameters and trusted ranges:
-        initial_parameters = np.r_[self.period_, np.zeros(2*self.order), median_y]
+        initial_parameters = np.r_[self.period_, np.zeros(2 * self.order), median_y]
         # print("initial parameters:")
         # print(initial_parameters)
-        lower = np.r_[per_lo, np.ones(2*self.order)*-y_range, -np.inf]
-        upper = np.r_[per_hi, np.ones(2*self.order)*y_range, np.inf]
+        lower = np.r_[per_lo, np.ones(2 * self.order) * -y_range, -np.inf]
+        upper = np.r_[per_hi, np.ones(2 * self.order) * y_range, np.inf]
 
         if weights is not None:
             args = (x, y, weights)
@@ -981,13 +995,13 @@ class FourierModel:
                                    loss=self.loss, f_scale=self.epsilon, bounds=(lower, upper),
                                    ftol=self.tol, xtol=self.tol, gtol=self.tol)
 
-        theta = regression.x    # array of the fitted parameters
+        theta = regression.x  # array of the fitted parameters
         cost = regression.cost
-        
-        period_fit = theta[0]              # fitted_period
-        coefs_fit = theta[1:2*self.order+1]     # amplitudes of the sin, cos terms
-        intercept_fit = theta[2*self.order+1]   # intercept
-    
+
+        period_fit = theta[0]  # fitted_period
+        coefs_fit = theta[1:2 * self.order + 1]  # amplitudes of the sin, cos terms
+        intercept_fit = theta[2 * self.order + 1]  # intercept
+
         if self.order > 2:
             amplitudes = np.zeros(self.order)
             phases = np.zeros(self.order)
@@ -995,9 +1009,9 @@ class FourierModel:
             amplitudes = np.zeros(3)
             phases = np.zeros(3)
 
-        for i in range(1, self.order+1):
-            amplitudes[i-1] = np.sqrt(coefs_fit[i*2-2]**2 + coefs_fit[i*2-1]**2)
-            phases[i-1] = np.arctan2(coefs_fit[i*2-1], coefs_fit[i*2-2])
+        for i in range(1, self.order + 1):
+            amplitudes[i - 1] = np.sqrt(coefs_fit[i * 2 - 2] ** 2 + coefs_fit[i * 2 - 1] ** 2)
+            phases[i - 1] = np.arctan2(coefs_fit[i * 2 - 1], coefs_fit[i * 2 - 2])
             # - (i*freq/freq)*np.arctan2(coefs_fit[1], coefs_fit[0])
 
         if self.mean_phase2 is not None:
@@ -1026,7 +1040,7 @@ class FourierModel:
         self.results_.update({'A': self.amplitudes_, 'Pha': self.phases_,
                               'coefs': self.coefs_, 'icept': self.intercept_,
                               'phi21': self.phi21_, 'phi31': self.phi31_})
-        
+
         if self.verbose:
             print("order = {}".format(self.order))
             print("N_data = {}".format(self.ndata))
@@ -1037,15 +1051,15 @@ class FourierModel:
             print(amplitudes)
             print("phases = ")
             print(phases)
-        
+
         if predict:
             self.prediction_fit_ = self.fourier_sum(x, coefs_fit, intercept_fit, period_fit)
             self.residual_fit_ = y - self.prediction_fit_
-            
+
             return self.prediction_fit_, self.residual_fit_
 
     def predict(self, x, shift=0.0, for_phases=False):
-        
+
         if for_phases:
             period = 1.0
         else:
@@ -1108,7 +1122,7 @@ class FourierModel:
 
         self.results_.update(
             {'ndata': self.ndata, 'tamp': totamp, 'stdv': rstdev, 'snr': snr, 'syn': synmag, 'synp': synp,
-             'phase_grid': phases})
+             'phase_grid': phases, 'phaseshift': shift})
 
 
 def phase_coverage(phases):
@@ -1122,16 +1136,15 @@ def phase_coverage(phases):
     assert (phases >= 0).all(), "In function phase_coverage: input array contains negative value."
 
     phases_sorted = np.sort(phases)
-    phases_sorted = np.append(phases_sorted, phases_sorted[0]+1)
-    phase_differences = phases_sorted-np.roll(phases_sorted, 1)
+    phases_sorted = np.append(phases_sorted, phases_sorted[0] + 1)
+    phase_differences = phases_sorted - np.roll(phases_sorted, 1)
     phasecov = 1.0 - np.amax(phase_differences[1:])
-    
+
     return phasecov
 
 
 def shift_phase(phase, mean_phase=5.9):
-
-    shifted_phase = phase-np.floor((phase-mean_phase+np.pi)/2.0/np.pi)*2.0*np.pi
+    shifted_phase = phase - np.floor((phase - mean_phase + np.pi) / 2.0 / np.pi) * 2.0 * np.pi
     # shifted_phase = phase-np.floor((phase-mean_phase)/2.0/np.pi)*2.0*np.pi
 
     return shifted_phase
@@ -1152,7 +1165,7 @@ def pca_transform(pca_model, results):
 
     if type(results) == dict:
         input_vector = np.array([results['period'], results['A'][0], results['A'][1], results['A'][2],
-                                results['phi21'], results['phi31']])
+                                 results['phi21'], results['phi31']])
     else:
         input_vector = results
 
@@ -1161,42 +1174,41 @@ def pca_transform(pca_model, results):
 
 
 def phase_roll(synmag, adjust=None, phi1=None):
-    
     assert adjust == 'mean' or adjust == 'a1' or adjust is None
 
     nsyn = len(synmag)
-    phas = np.linspace(0, 1-1.0/nsyn, nsyn)
-    
+    phas = np.linspace(0, 1 - 1.0 / nsyn, nsyn)
+
     # first, detect phase of minimum brightness, ...
-    ind_max = np.argmax(synmag)          # index of minimum brigtness
-    ind_min = np.argmin(synmag)          # index of minimum brigtness
-    max_mag_phase = phas[ind_max]           # phase of maximum magnitude (= minimum brightness)
-    min_mag_phase = phas[ind_min]           # phase of maximum magnitude (= minimum brightness)
-    phase_a1 = phi1 / (2*np.pi)
+    ind_max = np.argmax(synmag)  # index of minimum brigtness
+    ind_min = np.argmin(synmag)  # index of minimum brigtness
+    max_mag_phase = phas[ind_max]  # phase of maximum magnitude (= minimum brightness)
+    min_mag_phase = phas[ind_min]  # phase of maximum magnitude (= minimum brightness)
+    phase_a1 = phi1 / (2 * np.pi)
     # while phi1<0:                                       # make sure that phi1 is positive
     #   phi1=phi1+2.0*np.pi
     print("phi1 = {}".format(phi1))
     print("phase_a1 = {}".format(phase_a1))
-    ind_phase_a1 = int(np.round(phase_a1*nsyn))
+    ind_phase_a1 = int(np.round(phase_a1 * nsyn))
     print("ind_phase_a1 = {}".format(ind_phase_a1))
-    
+
     phasediff_min_max = max_mag_phase - min_mag_phase
-    
+
     # Adjust zero phase to max magnitude (minimum brightness):
-    synmagm = np.roll(synmag, -1*ind_max)
+    synmagm = np.roll(synmag, -1 * ind_max)
 
     # ... then detect first phase of mean magnitude after minimum brightness
-    meanmag = np.mean(synmag)    # mean mag
-    ind_mean = np.argmin(np.abs(synmagm[0:nsyn/2]-meanmag))
+    meanmag = np.mean(synmag)  # mean mag
+    ind_mean = np.argmin(np.abs(synmagm[0:nsyn / 2] - meanmag))
     mean_mag_phase = phas[ind_mean]
 
     if adjust == 'mean':
-        synmagr = np.roll(synmagm, -1*ind_mean)
+        synmagr = np.roll(synmagm, -1 * ind_mean)
     elif adjust == 'a1':
         synmagr = np.roll(synmag, ind_phase_a1)
     else:
         synmagr = synmag
 
     mean_mag_phase = mean_mag_phase + max_mag_phase
-    
+
     return synmagr, meanmag, phasediff_min_max, mean_mag_phase, phase_a1

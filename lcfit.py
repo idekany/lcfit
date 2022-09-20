@@ -20,23 +20,23 @@ tic = time()
 # ------------------------------
 #  WIRED-IN PARAMETERS:
 
-phase_ext_neg = 0                       # negative phase range extension beyond [0,1]
-phase_ext_pos = 1.2                     # positive phase range extension beyond [0,1]
-minplotlcphase = -0.05                  # minimum phase to plot
-maxplotlcphase = 2.05                   # maximum phase to plot
-constrain_yaxis_range = False           # if True, the y-axis will be constrained to unclipped data
-aspect_ratio = 0.6                      # aspect ratio of the plots
-figformat = "png"                       # format of the plots
-c_freq_tol = 10                         # relative tolerance parameter for the period fit
-                                        # (range will be c_freq_tol / total timespan)
-gpr_sample_fpars = False                # If `True`, then the sampled Fourier parameters during error estimation
-                                        # will be written to a file.
-epsilon = 0.05                          # Huber loss L1 -> L2 threshold in the Huber loss function
-tol1 = 1e-4                             # tolerance for convergence in the scipy least_squares method
-n_gpr_restarts = 0
-n_gpr_sample = 100                      # How many samples to draw from the GPR model for error estimation?
-maxn_gpr = 200                          # Maximum number of points to be fitted with GPR (or data will be binned)
-eps = 0.000001                          # a small positive number :)
+phase_ext_neg = 0  # negative phase range extension beyond [0,1]
+phase_ext_pos = 1.2  # positive phase range extension beyond [0,1]
+minplotlcphase = -0.05  # minimum phase to plot
+maxplotlcphase = 2.05  # maximum phase to plot
+constrain_yaxis_range = True  # if True, the y-axis will be constrained to unclipped data
+aspect_ratio = 0.6  # aspect ratio of the plots
+figformat = "png"  # format of the plots
+c_freq_tol = 10  # relative tolerance parameter for the period fit
+# (range will be c_freq_tol / total timespan)
+gpr_sample_fpars = False  # If `True`, then the sampled Fourier parameters during error estimation
+# will be written to a file.
+epsilon = 0.05  # Huber loss L1 -> L2 threshold in the Huber loss function
+tol1 = 1e-4  # tolerance for convergence in the scipy least_squares method
+n_gpr_restarts = 10
+n_gpr_sample = 100  # How many samples to draw from the GPR model for error estimation?
+maxn_gpr = 200  # Maximum number of points to be fitted with GPR (or data will be binned)
+eps = 0.000001  # a small positive number :)
 
 # Parameters for data degradation:
 remove_points = True
@@ -118,8 +118,10 @@ else:
 
 
 # Read input list:
-object_id, object_per, object_dataset = ut.read_input(os.path.join(pars.rootdir, pars.input_list),
-                                                      do_gls=pars.do_gls, known_columns=pars.known_data_cols)
+object_id, object_per, object_dataset, object_phaseshift = ut.read_input(os.path.join(pars.rootdir, pars.input_list),
+                                                                         do_gls=pars.do_gls,
+                                                                         known_columns=pars.known_data_cols,
+                                                                         known_phaseshift=pars.known_phaseshift)
 n_object = len(object_id)
 
 # ---------------------
@@ -128,6 +130,7 @@ n_object = len(object_id)
 for iobj, objname in enumerate(object_id):
 
     objname = str(objname)
+    phaseshift = object_phaseshift[iobj]
 
     if pars.verbose:
         print("===================> OBJECT {} : {}<==================="
@@ -188,7 +191,10 @@ for iobj, objname in enumerate(object_id):
                     .format(objname, ndata, idata + 1, pars.min_ndata, idata + 1))
             continue
 
-        otime = lcdatain['otime'] - otime0
+        if pars.null_epoch is not None:
+            otime = lcdatain['otime'] - pars.null_epoch
+        else:
+            otime = lcdatain['otime'] - otime0
 
         if pars.is_zperr_col:
             zperr = lcdatain['zperr' + str(idata + 1)]
@@ -215,7 +221,7 @@ for iobj, objname in enumerate(object_id):
             if pars.verbose:
                 print("P_in = {}".format(period))
 
-#       ------------------------------------------
+        #       ------------------------------------------
         # degrade light curve
 
         if pars.degrade_lc:
@@ -232,7 +238,7 @@ for iobj, objname in enumerate(object_id):
             print("n_LC = " + str(ndata))
             merr = np.sqrt(magerr ** 2 + zperr ** 2)
 
-#       ------------------------------------------
+        #       ------------------------------------------
 
         if pars.weighted_fit and pars.is_err_col:
             weights = ((merr + eps) * 100) ** (-2)
@@ -344,12 +350,13 @@ for iobj, objname in enumerate(object_id):
             arrays_best = (otime, otime_o, mag, mag_o, magerr, magerr_o, zperr, zperr_o)
 
         if pars.plot_all_datasets and len(pars.use_data_cols) > 1:
-
             # Create a plot for each dataset of this object.
-            shift = fm.phases_[0] / (2 * np.pi)
-            phase_obs = ff.get_phases(fm.period_, otime, epoch=0.0, shift=shift, all_positive=True)
-            phase_obs_o = ff.get_phases(fm.period_, otime_o, epoch=0.0, shift=shift, all_positive=True)
-            syn = fm.predict(phas, shift=shift, for_phases=True)
+            if not pars.known_phaseshift:
+                phaseshift = fm.phases_[0] / (2 * np.pi)
+
+            phase_obs = ff.get_phases(fm.period_, otime, epoch=0.0, shift=phaseshift, all_positive=True)
+            phase_obs_o = ff.get_phases(fm.period_, otime_o, epoch=0.0, shift=phaseshift, all_positive=True)
+            syn = fm.predict(phas, shift=phaseshift, for_phases=True)
             outfile = os.path.join(pars.rootdir, pars.plot_dir, objname + "__" + str(idata + 1) + ".png")
             ut.plotlc(
                 (np.vstack((phase_obs_o, mag_o, magerr_o)).T, np.vstack((phase_obs, mag, magerr)).T,
@@ -367,37 +374,36 @@ for iobj, objname in enumerate(object_id):
 
     (otime, otime_o, mag, mag_o, magerr, magerr_o, zperr, zperr_o) = arrays_best
 
+    nepoch = fm_best.ndata
+    results = fm_best.results_
+    minmax = np.max(mag) - np.min(mag)
+    totalzperr = np.sqrt(np.sum(zperr ** 2)) / fm_best.ndata
+    results.update(
+        {'objname': objname, 'delta_per': fm_best.period_ - period_o_best, 'nepoch': nepoch, 'minmax': minmax,
+         'otime': otime, 'otime_o': otime_o, 'otime0': otime0, 'zperr_o': zperr_o, 'zperr': zperr,
+         'mag': mag, 'mag_o': mag_o, 'magerr': magerr, 'magerr_o': magerr_o, 'dataset': best_dataset,
+         'totalzperr': totalzperr, 'period': fm_best.period_, 'cost': fm_best.cost_, 'forder': fm_best.order})
+
+    # Compute the phases of the observations:
     # Do we want to shift the phases so that the zero phase is at the first Fourier phase?
-    if pars.align_phi1:
-        shift = fm_best.phases_[0] / (2 * np.pi)
-    else:
-        shift = 0.0
+    if pars.align_phi1 and not pars.known_phaseshift and not pars.fourier_from_gpr:
+        phaseshift = fm_best.phases_[0] / (2 * np.pi)
 
     # Phase-fold the light curve, adjust phases:
-    phase_obs = ff.get_phases(fm_best.period_, otime, epoch=0.0, shift=shift, all_positive=True)
-    phase_obs_o = ff.get_phases(fm_best.period_, otime_o, epoch=0.0, shift=shift, all_positive=True)
+    phase_obs = ff.get_phases(fm_best.period_, otime, epoch=0.0, shift=phaseshift, all_positive=True)
+    phase_obs_o = ff.get_phases(fm_best.period_, otime_o, epoch=0.0, shift=phaseshift, all_positive=True)
     phasecov1 = ff.phase_coverage(phase_obs)
 
     # Phase-fold the light curve with DOUBLE PERIOD, adjust phases :
-    phase_obs_2p = ff.get_phases(fm_best.period_ * 2, otime, epoch=0.0, shift=shift / 2.0, all_positive=True)
-    phase_obs_o_2p = ff.get_phases(fm_best.period_ * 2, otime_o, epoch=0.0, shift=shift / 2.0, all_positive=True)
+    phase_obs_2p = ff.get_phases(fm_best.period_ * 2, otime, epoch=0.0, shift=phaseshift / 2.0, all_positive=True)
+    phase_obs_o_2p = ff.get_phases(fm_best.period_ * 2, otime_o, epoch=0.0, shift=phaseshift / 2.0, all_positive=True)
     phasecov2 = ff.phase_coverage(phase_obs_2p)
 
-    nepoch = fm_best.ndata
-    minmax = np.max(mag) - np.min(mag)
+    results.update({
+        'ph': phase_obs, 'ph_2p': phase_obs_2p, 'ph_o': phase_obs_o, 'ph_o_2p': phase_obs_o_2p,
+        'phcov': phasecov1, 'phcov2': phasecov2, 'phaseshift': phaseshift
+    })
 
-    totalzperr = np.sqrt(np.sum(zperr ** 2)) / fm_best.ndata
-
-    # Save results in dictionary:
-    # fm_best.compute_results(phas)
-    results = fm_best.results_
-    results.update(
-        {'objname': objname, 'delta_per': fm_best.period_ - period_o_best, 'nepoch': nepoch, 'minmax': minmax,
-         'otime': otime, 'otime_o': otime_o, 'otime0': otime0,
-         'mag': mag, 'mag_o': mag_o, 'magerr': magerr, 'magerr_o': magerr_o, 'dataset': best_dataset,
-         'ph': phase_obs, 'ph_2p': phase_obs_2p, 'ph_o': phase_obs_o, 'ph_o_2p': phase_obs_o_2p,
-         'zperr_o': zperr_o, 'zperr': zperr, 'phcov': phasecov1, 'phcov2': phasecov2,
-         'totalzperr': totalzperr, 'period': fm_best.period_, 'cost': fm_best.cost_, 'forder': fm_best.order})
     if feh_model is not None:
         # feh = ut.smolec_feh(fm_best.period_, fm_best.phi31_, fm_best.amplitudes_[1])
         feh = feh_model.predict(np.array([[fm_best.period_, fm_best.amplitudes_[1], fm_best.phi31_]]))
@@ -425,6 +431,7 @@ for iobj, objname in enumerate(object_id):
         gprm = ff.GPRModel(maxn_gpr=maxn_gpr, phase_ext_neg=phase_ext_neg, phase_ext_pos=phase_ext_pos,
                            n_restarts_optimizer=n_gpr_restarts, hparam_optimization=pars.gpr_hparam_optimization,
                            n_init=pars.gpr_cv_n_init, n_calls=pars.gpr_cv_n_calls,
+                           kernel=pars.kernel,
                            lower_length_scale_bound=pars.lower_length_scale_bound,
                            upper_length_scale_bound=pars.upper_length_scale_bound, n_jobs=n_jobs)
 
@@ -444,6 +451,34 @@ for iobj, objname in enumerate(object_id):
             if pars.pca_model_file is not None:
                 pca_feat = ff.pca_transform(pca_model, results)
                 results.update({'pca_feat': pca_feat})
+
+            if pars.align_phi1 and not pars.known_phaseshift:
+                phaseshift = fm_best.phases_[0] / (2 * np.pi)
+
+                # Phase-fold the light curve, adjust phases:
+                phase_obs = ff.get_phases(results['period'], results['otime'], epoch=0.0, shift=phaseshift,
+                                          all_positive=True)
+                phase_obs_o = ff.get_phases(results['period'], results['otime_o'], epoch=0.0, shift=phaseshift,
+                                            all_positive=True)
+                phasecov1 = ff.phase_coverage(phase_obs)
+
+                # Phase-fold the light curve with DOUBLE PERIOD, adjust phases :
+                phase_obs_2p = ff.get_phases(results['period'] * 2, results['otime'], epoch=0.0, shift=phaseshift / 2.0,
+                                             all_positive=True)
+                phase_obs_o_2p = ff.get_phases(results['period'] * 2, results['otime_o'], epoch=0.0, shift=phaseshift / 2.0,
+                                               all_positive=True)
+                phasecov2 = ff.phase_coverage(phase_obs_2p)
+
+                results.update({
+                    'ph': phase_obs, 'ph_2p': phase_obs_2p, 'ph_o': phase_obs_o, 'ph_o_2p': phase_obs_o_2p,
+                    'phcov': phasecov1, 'phcov2': phasecov2, 'phaseshift': phaseshift
+                })
+
+                # gprm.fit(results['ph'], results['mag'], noise_level=results['stdv'],
+                #          verbose=pars.verbose, random_state=pars.seed)
+
+                synmag_gpr, sigma_gpr = gprm.predict(phas.reshape(-1, 1) - phaseshift, return_std=True)
+                results.update({'synmag_gpr': synmag_gpr, 'sigma_gpr': sigma_gpr})
 
         if pars.n_augment_data is not None:
             aug_samples_gpr, synmag_gpa = gprm.augment_data(phas, n_aug=pars.n_augment_data, verbose=True,
@@ -494,7 +529,8 @@ for iobj, objname in enumerate(object_id):
     # Write out phased, phase-sorted light curve in the phase range [phase_ext_neg, phase_ext_pos]
     # into a separate file for each object.
     if pars.output_data_dir is not None:
-        ut.write_single_datafile(pars, results, phase_ext_neg=phase_ext_neg, phase_ext_pos=phase_ext_pos)
+        ut.write_single_datafile(pars, results, phase_ext_neg=phase_ext_neg, phase_ext_pos=phase_ext_pos,
+                                 with_errors=True)
 
     # Write out the fitted model parameters and statistics:
     ut.write_results(pars, results)
@@ -508,7 +544,6 @@ for iobj, objname in enumerate(object_id):
         ut.make_figures(pars, results, constrain_yaxis_range=constrain_yaxis_range,
                         minphase=minplotlcphase, maxphase=maxplotlcphase, aspect_ratio=aspect_ratio,
                         figformat=figformat)
-
 
 toc = time()
 print("\n--- Execution time: {0:.1f} seconds ---".format(toc - tic))

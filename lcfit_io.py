@@ -1,7 +1,8 @@
 import argparse
 import os
 
-default_parameter_file = '@lcfit.par'
+# default_parameter_file = '@lcfit_GbandWithRV.par'
+default_parameter_file = '@lcfit_RV.par'
 
 
 def argparser():
@@ -101,8 +102,8 @@ def argparser():
     ap.add_argument('--output_gpr_dir',
                     action='store',
                     type=str,
-                    default='gpr',
-                    help='Subdirectory of the output Gaussian Process models.')
+                    default=None,
+                    help='Subdirectory (if specified) of the output Gaussian Process models.')
 
     ap.add_argument('--output_param_file',
                     action='store',
@@ -167,22 +168,37 @@ def argparser():
                     action='store_true',
                     help='The time series will be phase-aligned by the first Fourier phase defined to be at zero.')
 
+    ap.add_argument('--null_epoch',
+                    action='store',
+                    type=float,
+                    default=None,
+                    help='Reference epoch that will be subtracted from the time values. '
+                         'If None (default), then the time of the first measurement will be used '
+                         'for every time series.')
+
     ap.add_argument('--gpr_fit',
                     action='store_true',
-                    help='Perform Gaussian Process Regression on the phase-folded time series.')
+                    help='Perform Gaussian Process Regression (GPR) on the phase-folded time series.')
+
+    ap.add_argument('--kernel',
+                    action='store',
+                    type=str,
+                    choices=['matern', 'expsine2'],
+                    default='matern',
+                    help='Kernel type for the GPR. Available options: `matern`, `expsine2`. Default: `matern`.')
 
     ap.add_argument('--lower_length_scale_bound',
                     action='store',
                     type=float,
                     default=0.1,
-                    help='Lower length scale bound for the exponential sine-squared kernel. '
+                    help='Lower length scale bound for the GPR kernel. '
                          'Used if the --gpr_fit option is selected. Default: 0.1')
 
     ap.add_argument('--upper_length_scale_bound',
                     action='store',
                     type=float,
                     default=10.0,
-                    help='Upper length scale bound for the exponential sine-squared kernel. '
+                    help='Upper length scale bound for the GPR kernel. '
                          'Used if the --gpr_fit option is selected. Default: 10.0')
 
     ap.add_argument('--gpr_hparam_optimization',
@@ -267,8 +283,13 @@ def argparser():
 
     ap.add_argument('--known_data_cols',
                     action='store_true',
-                    help='If set, the input list file is expected to contain an extra column with the '
-                         'number of the data column to be used for regression.')
+                    help='If set, the input list file is expected to contain an extra column with header name \'col\' '
+                         'containing the number of the data column to be used for regression.')
+
+    ap.add_argument('--known_phaseshift',
+                    action='store_true',
+                    help='If set, the input list file is expected to contain an extra column with header name '
+                         '\'phaseshift\', containing the phase shift to be applied to the time series.')
 
     ap.add_argument('--min_snr',
                     action='store',

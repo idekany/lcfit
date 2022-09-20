@@ -17,6 +17,22 @@ If lcfit is used in an astronomical research project as provided here or in a
 modified form, the citation of any of the aforementioned papers in the resulting 
 publication will be much appreciated.
 
+## New features
+
+#### 20 September 2022:
+
+- Matern kernel is now available for Gaussian Process Regression (GPR) of the light curves. 
+  Various tests on noisy data with erratic sampling show that most of the times 
+  GPR using Matern kernel is more robust against phase gaps than the exponential 
+  sine-squared kernel. Matern is now the default kernel, but the expsine2 is still available 
+  (see the `--kernel` parameter).   
+
+- Phase shift values to reproduce the phase alignment of multiple light curves is written
+  to the output. They can now also be read in and used as precomputed values (see the
+  `--known_phaseshift` parameter). This feature can be used to easily phase-align multiple
+  time series of different nature of the same object, e.g., light curves with radial 
+  velocity curves.
+  
 ## Installation
 
 Simply use `git clone <URL>` to clone this library into a local directory. 
