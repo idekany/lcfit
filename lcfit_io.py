@@ -2,7 +2,7 @@ import argparse
 import os
 
 # default_parameter_file = '@lcfit_GbandWithRV.par'
-default_parameter_file = '@lcfit_RV.par'
+default_parameter_file = '@lcfit_asasWithRV.par'
 
 
 def argparser():

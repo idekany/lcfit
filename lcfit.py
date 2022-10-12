@@ -310,7 +310,7 @@ for iobj, objname in enumerate(object_id):
             fm.set_params({'order': forder_opt})
             # fm.set_params({'c_freq_tol': 1e-10, 'order': forder_opt})
             prediction, residual = fm.fit(otime, mag, weights=weights, predict=True)
-            fm.compute_results(phas)
+            fm.compute_results(phas, shiftphase=False)
 
             rstdev = np.std(residual)  # std. dev. of the residual
 
@@ -446,7 +446,8 @@ for iobj, objname in enumerate(object_id):
             print("Computing Fourier parameters from GPR model...")
             fm_best.set_params({'c_freq_tol': 1e-10, 'period_': 1.0, 'order': 20})
             fm_best.fit(phas, synmag_gpr, weights=None, predict=False)
-            fm_best.compute_results(phas, data=(results['ph'], results['mag']), shiftphase=pars.align_phi1)
+            fm_best.compute_results(phas, data=(results['ph'], results['mag']),
+                                    shiftphase=(pars.align_phi1 and not pars.known_phaseshift))
             results.update(fm_best.results_)
             if pars.pca_model_file is not None:
                 pca_feat = ff.pca_transform(pca_model, results)
